@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cyber-darker text-gray-100 font-sans antialiased;
+    background-image: 
+      linear-gradient(rgba(168, 85, 247, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(168, 85, 247, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+  }
+  
+  .neon-border {
+    @apply border-2 border-cyber-purple/50 shadow-[0_0_15px_rgba(168,85,247,0.5)];
+  }
+  
+  .cyber-button {
+    @apply px-6 py-3 bg-gradient-to-r from-cyber-purple to-cyber-cyan text-white font-bold rounded-lg
+    hover:shadow-[0_0_20px_rgba(168,85,247,0.8)] transition-all duration-300 transform hover:scale-105;
+  }
+  
+  .scan-pulse {
+    @apply relative before:absolute before:inset-0 before:rounded-full before:bg-cyber-cyan/20 
+    before:animate-ping;
+  }
+}
