@@ -1,41 +1,28 @@
 import { motion } from 'framer-motion';
-import { type LucideProps } from 'lucide-react';
-import { ForwardRefExoticComponent, RefAttributes } from 'react';
 
 interface StatCardProps {
   title: string;
-  value: string | number;
-  icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>;
-  trend?: string;
-  color?: string;
+  value: number | string;
+  trend: string;
+  icon: string;
 }
 
-export default function StatCard({ title, value, icon: Icon, trend, color = 'cyber-purple' }: StatCardProps) {
+export default function StatCard({ title, value, trend, icon }: StatCardProps) {
   return (
     <motion.div
-      whileHover={{ scale: 1.02, y: -5 }}
-      className="glass-card p-6 relative overflow-hidden group"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.05 }}
+      className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm"
     >
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-cyber-purple/10 to-cyber-cyan/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-xl bg-${color}/20 border border-${color}/30`}>
-            <Icon className={`w-6 h-6 text-${color}`} />
-          </div>
-          {trend && (
-            <span className="text-sm text-green-400">+{trend}</span>
-          )}
-        </div>
-        
-        <div className="text-3xl font-black text-white mb-1">
-          {value}
-        </div>
-        <div className="text-sm text-gray-400 uppercase tracking-wider">
-          {title}
-        </div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl">{icon}</span>
+        <span className="text-slate-400 text-sm">{title}</span>
       </div>
+      <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+        {value}
+      </div>
+      <div className="text-xs text-slate-500 mt-1">{trend}</div>
     </motion.div>
   );
 }
