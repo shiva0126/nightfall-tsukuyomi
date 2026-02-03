@@ -23,7 +23,12 @@ func ConnectPostgres(host string, port int, user, password, dbname string) error
 	log.Println("✅ Connected to PostgreSQL")
 	
 	// Auto-migrate database schema
-	err = DB.AutoMigrate(&models.Target{}, &models.Scan{}, &models.Finding{})
+	err = DB.AutoMigrate(
+		&models.Target{}, 
+		&models.Scan{}, 
+		&models.Finding{},
+		&models.Intelligence{}, // NEW TABLE
+	)
 	if err != nil {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}

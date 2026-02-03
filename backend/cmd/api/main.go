@@ -8,7 +8,10 @@ import (
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/database"
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/models"
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/handlers"
+	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/services"
 )
+
+var scanService *services.ScanService
 
 func main() {
 	cfg, err := config.Load("../../config.yaml")
@@ -30,6 +33,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+
+	// Initialize services
+	scanService = services.NewScanService()
 
 	gin.SetMode(gin.DebugMode)
 	router := gin.Default()
@@ -70,6 +76,7 @@ func main() {
 		
 		// Passive Intelligence
 		v1.POST("/passive/recon", handlers.RunPassiveRecon)
+		v1.GET("/scans/:id/intelligence", getScanIntelligence)
 	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -105,12 +112,17 @@ func createScan(c *gin.Context) {
 		return
 	}
 
-	scan := models.Scan{TargetID: target.ID, Status: "pending", RiskScore: 0}
-	database.DB.Create(&scan)
+	// Use scan service to create scan with automatic passive recon
+	scan, err := scanService.CreateScanWithPassiveRecon(target.ID, target.Domain)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create scan"})
+		return
+	}
 
 	c.JSON(201, gin.H{
 		"id": scan.ID, "target_id": target.ID,
 		"domain": target.Domain, "status": scan.Status,
+		"message": "Scan created. Passive reconnaissance running in background.",
 	})
 }
 
@@ -133,6 +145,16 @@ func getScanFindings(c *gin.Context) {
 	var findings []models.Finding
 	database.DB.Where("scan_id = ?", id).Order("created_at desc").Find(&findings)
 	c.JSON(200, gin.H{"findings": findings, "count": len(findings)})
+}
+
+func getScanIntelligence(c *gin.Context) {
+	id := c.Param("id")
+	var intelligence models.Intelligence
+	if database.DB.Where("scan_id = ?", id).First(&intelligence).Error != nil {
+		c.JSON(404, gin.H{"error": "No intelligence data found for this scan"})
+		return
+	}
+	c.JSON(200, intelligence)
 }
 
 func listTargets(c *gin.Context) {
