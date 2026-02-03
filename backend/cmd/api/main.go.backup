@@ -67,9 +67,6 @@ func main() {
 		// Findings
 		v1.POST("/findings", handlers.CreateFinding)
 		v1.GET("/scans/:id/findings", getScanFindings)
-		
-		// Passive Intelligence
-		v1.POST("/passive/recon", handlers.RunPassiveRecon)
 	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -153,3 +150,7 @@ func createTarget(c *gin.Context) {
 	database.DB.Create(&target)
 	c.JSON(201, target)
 }
+
+// Add this to the v1 routes section (before the closing brace of v1 group)
+// Passive Intelligence
+// v1.POST("/passive/recon", handlers.RunPassiveRecon)
