@@ -1,0 +1,46 @@
+# Go
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/backend/bin/
+/backend/vendor/
+go.work
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+/frontend/dist/
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+config.yaml
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# Secrets
+api_keys.txt
+secrets/
+credentials/
