@@ -2,17 +2,37 @@ package main
 
 import (
 	"log"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/config"
+	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/database"
+	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/models"
 )
 
 func main() {
-	// Set Gin mode
-	gin.SetMode(gin.DebugMode)
+	cfg, err := config.Load("../../config.yaml")
+	if err != nil {
+		log.Printf("⚠️  Warning: Could not load config.yaml, using defaults: %v", err)
+		cfg = &config.Config{
+			Server: config.ServerConfig{Port: 8888, Host: "0.0.0.0"},
+			Database: config.DatabaseConfig{
+				Host: "localhost", Port: 5433, Database: "nightfall",
+				User: "nightfall", Password: "nightfall_dev_2025",
+			},
+		}
+	}
 
-	// Create router
+	err = database.ConnectPostgres(
+		cfg.Database.Host, cfg.Database.Port,
+		cfg.Database.User, cfg.Database.Password, cfg.Database.Database,
+	)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+
+	gin.SetMode(gin.DebugMode)
 	router := gin.Default()
 
-	// CORS middleware
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -24,115 +44,93 @@ func main() {
 		c.Next()
 	})
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":  "healthy",
-			"service": "nightfall-tsukuyomi",
-			"version": "1.0.0",
+			"status": "healthy", "service": "nightfall-tsukuyomi",
+			"version": "1.0.0", "database": "connected",
 		})
 	})
 
-	// API v1 group
 	v1 := router.Group("/api/v1")
 	{
-		// Scans endpoints
 		v1.GET("/scans", listScans)
 		v1.POST("/scans", createScan)
 		v1.GET("/scans/:id", getScan)
-		v1.GET("/scans/:id/status", getScanStatus)
-		
-		// Targets endpoints
 		v1.GET("/targets", listTargets)
 		v1.POST("/targets", createTarget)
 	}
 
-	// Start server
-	log.Println("🌙 Nightfall Tsukuyomi API starting on :8080")
-	if err := router.Run(":8080"); err != nil {
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	log.Printf("🌙 Nightfall Tsukuyomi API starting on %s", addr)
+	if err := router.Run(addr); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
 
-// Handler functions
 func listScans(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"scans": []gin.H{
-			{
-				"id":         1,
-				"target":     "example.com",
-				"status":     "completed",
-				"risk_score": 72,
-				"started_at": "2025-02-03T10:00:00Z",
-			},
-		},
-	})
+	var scans []models.Scan
+	database.DB.Find(&scans)
+	c.JSON(200, gin.H{"scans": scans, "count": len(scans)})
 }
 
 func createScan(c *gin.Context) {
 	var req struct {
-		Target string `json:"target" binding:"required"`
+		TargetID uint   `json:"target_id"`
+		Domain   string `json:"domain"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
+	var target models.Target
+	if req.TargetID > 0 {
+		database.DB.First(&target, req.TargetID)
+	} else if req.Domain != "" {
+		database.DB.FirstOrCreate(&target, models.Target{Domain: req.Domain})
+	} else {
+		c.JSON(400, gin.H{"error": "target_id or domain required"})
+		return
+	}
+
+	scan := models.Scan{TargetID: target.ID, Status: "pending", RiskScore: 0}
+	database.DB.Create(&scan)
+
 	c.JSON(201, gin.H{
-		"id":      "scan_" + req.Target,
-		"target":  req.Target,
-		"status":  "pending",
-		"message": "Scan initiated",
+		"id": scan.ID, "target_id": target.ID,
+		"domain": target.Domain, "status": scan.Status,
 	})
 }
 
 func getScan(c *gin.Context) {
 	id := c.Param("id")
-	c.JSON(200, gin.H{
-		"id":           id,
-		"target":       "example.com",
-		"status":       "completed",
-		"risk_score":   72,
-		"risk_grade":   "MEDIUM",
-		"findings":     15,
-		"started_at":   "2025-02-03T10:00:00Z",
-		"completed_at": "2025-02-03T10:15:00Z",
-	})
-}
-
-func getScanStatus(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(200, gin.H{
-		"id":       id,
-		"status":   "running",
-		"progress": 45,
-		"message":  "Scanning headers and TLS configuration...",
-	})
+	var scan models.Scan
+	if database.DB.First(&scan, id).Error != nil {
+		c.JSON(404, gin.H{"error": "Scan not found"})
+		return
+	}
+	
+	var findings []models.Finding
+	database.DB.Where("scan_id = ?", scan.ID).Find(&findings)
+	
+	c.JSON(200, gin.H{"scan": scan, "findings": findings})
 }
 
 func listTargets(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"targets": []gin.H{
-			{"id": 1, "domain": "example.com", "last_scanned": "2025-02-03T10:00:00Z"},
-			{"id": 2, "domain": "test.com", "last_scanned": "2025-02-02T14:30:00Z"},
-		},
-	})
+	var targets []models.Target
+	database.DB.Find(&targets)
+	c.JSON(200, gin.H{"targets": targets, "count": len(targets)})
 }
 
 func createTarget(c *gin.Context) {
 	var req struct {
 		Domain string `json:"domain" binding:"required"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(201, gin.H{
-		"id":         100,
-		"domain":     req.Domain,
-		"created_at": "2025-02-03T12:00:00Z",
-	})
+	target := models.Target{Domain: req.Domain}
+	database.DB.Create(&target)
+	c.JSON(201, target)
 }
