@@ -7,6 +7,7 @@ import (
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/config"
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/database"
 	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/models"
+	"github.com/shiva0126/nightfall-tsukuyomi/backend/internal/handlers"
 )
 
 func main() {
@@ -53,11 +54,19 @@ func main() {
 
 	v1 := router.Group("/api/v1")
 	{
+		// Scans
 		v1.GET("/scans", listScans)
 		v1.POST("/scans", createScan)
 		v1.GET("/scans/:id", getScan)
+		v1.PUT("/scans/:id/status", handlers.UpdateScanStatus)
+		
+		// Targets
 		v1.GET("/targets", listTargets)
 		v1.POST("/targets", createTarget)
+		
+		// Findings
+		v1.POST("/findings", handlers.CreateFinding)
+		v1.GET("/scans/:id/findings", getScanFindings)
 	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -69,7 +78,7 @@ func main() {
 
 func listScans(c *gin.Context) {
 	var scans []models.Scan
-	database.DB.Find(&scans)
+	database.DB.Order("id desc").Find(&scans)
 	c.JSON(200, gin.H{"scans": scans, "count": len(scans)})
 }
 
@@ -116,9 +125,16 @@ func getScan(c *gin.Context) {
 	c.JSON(200, gin.H{"scan": scan, "findings": findings})
 }
 
+func getScanFindings(c *gin.Context) {
+	id := c.Param("id")
+	var findings []models.Finding
+	database.DB.Where("scan_id = ?", id).Order("created_at desc").Find(&findings)
+	c.JSON(200, gin.H{"findings": findings, "count": len(findings)})
+}
+
 func listTargets(c *gin.Context) {
 	var targets []models.Target
-	database.DB.Find(&targets)
+	database.DB.Order("id desc").Find(&targets)
 	c.JSON(200, gin.H{"targets": targets, "count": len(targets)})
 }
 
