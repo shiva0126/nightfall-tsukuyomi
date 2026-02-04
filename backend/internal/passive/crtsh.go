@@ -9,82 +9,76 @@ import (
 	"time"
 )
 
-// CrtShEntry represents a certificate transparency log entry
-type CrtShEntry struct {
+// CertEntry represents a certificate transparency log entry
+type CertEntry struct {
 	NameValue string `json:"name_value"`
-	IssuerName string `json:"issuer_name"`
-	NotBefore string `json:"not_before"`
-	NotAfter  string `json:"not_after"`
 }
 
-// CrtShScanner queries crt.sh for subdomains
-type CrtShScanner struct {
-	client *http.Client
-}
-
-func NewCrtShScanner() *CrtShScanner {
-	return &CrtShScanner{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
-}
-
-// GetSubdomains queries crt.sh for all subdomains of a domain
-func (s *CrtShScanner) GetSubdomains(domain string) ([]string, error) {
+// EnumerateSubdomains queries Certificate Transparency logs via crt.sh
+func EnumerateSubdomains(domain string) []string {
+	subdomains := make(map[string]bool)
+	
+	// Query crt.sh API
 	url := fmt.Sprintf("https://crt.sh/?q=%%25.%s&output=json", domain)
 	
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	client := &http.Client{
+		Timeout: 30 * time.Second,
 	}
 	
-	req.Header.Set("User-Agent", "Nightfall-Tsukuyomi/1.0")
-	
-	resp, err := s.client.Do(req)
+	resp, err := client.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query crt.sh: %w", err)
+		fmt.Printf("[Passive] crt.sh query failed: %v\n", err)
+		return []string{}
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("crt.sh returned status %d", resp.StatusCode)
+		fmt.Printf("[Passive] crt.sh returned status %d\n", resp.StatusCode)
+		return []string{}
 	}
 	
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return []string{}
 	}
 	
-	var entries []CrtShEntry
+	var entries []CertEntry
 	if err := json.Unmarshal(body, &entries); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+		return []string{}
 	}
 	
 	// Extract unique subdomains
-	subdomainSet := make(map[string]bool)
 	for _, entry := range entries {
-		// Handle multi-domain certificates
-		domains := strings.Split(entry.NameValue, "\n")
-		for _, d := range domains {
-			d = strings.TrimSpace(d)
-			d = strings.ToLower(d)
+		// Split by newlines (cert can have multiple names)
+		names := strings.Split(entry.NameValue, "\n")
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			name = strings.TrimPrefix(name, "*.")
+			name = strings.ToLower(name)
 			
-			// Remove wildcards
-			d = strings.TrimPrefix(d, "*.")
-			
-			// Only include subdomains of the target
-			if strings.HasSuffix(d, domain) || d == domain {
-				subdomainSet[d] = true
+			// Only include if it's actually a subdomain of the target
+			if strings.HasSuffix(name, domain) && name != "" {
+				subdomains[name] = true
 			}
 		}
 	}
 	
-	// Convert to slice
-	subdomains := make([]string, 0, len(subdomainSet))
-	for subdomain := range subdomainSet {
-		subdomains = append(subdomains, subdomain)
+	// Convert map to slice
+	result := make([]string, 0, len(subdomains))
+	for subdomain := range subdomains {
+		result = append(result, subdomain)
 	}
 	
-	return subdomains, nil
+	fmt.Printf("[Passive] Found %d unique subdomains via crt.sh\n", len(result))
+	return result
+}
+
+// FetchSubdomains is an alias for EnumerateSubdomains
+func FetchSubdomains(domain string) []string {
+	return EnumerateSubdomains(domain)
+}
+
+// QueryCertificateTransparency is another alias for backward compatibility
+func QueryCertificateTransparency(domain string) []string {
+	return EnumerateSubdomains(domain)
 }

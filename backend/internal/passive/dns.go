@@ -101,3 +101,42 @@ func (s *DNSScanner) GetDMARCRecord(domain string) string {
 	}
 	return ""
 }
+
+// DNSLookup performs basic DNS lookup
+func DNSLookup(domain string) []string {
+	results := []string{}
+	
+	// A records
+	ips, err := net.LookupIP(domain)
+	if err == nil {
+		for _, ip := range ips {
+			results = append(results, fmt.Sprintf("A: %s", ip.String()))
+		}
+	}
+	
+	// MX records
+	mxRecords, err := net.LookupMX(domain)
+	if err == nil {
+		for _, mx := range mxRecords {
+			results = append(results, fmt.Sprintf("MX: %s (priority: %d)", mx.Host, mx.Pref))
+		}
+	}
+	
+	// NS records
+	nsRecords, err := net.LookupNS(domain)
+	if err == nil {
+		for _, ns := range nsRecords {
+			results = append(results, fmt.Sprintf("NS: %s", ns.Host))
+		}
+	}
+	
+	// TXT records
+	txtRecords, err := net.LookupTXT(domain)
+	if err == nil {
+		for _, txt := range txtRecords {
+			results = append(results, fmt.Sprintf("TXT: %s", txt))
+		}
+	}
+	
+	return results
+}
